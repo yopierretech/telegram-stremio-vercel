@@ -33,7 +33,7 @@
   <div id="s1">
     <label for="phone">מספר טלפון (עם קידומת מדינה)</label>
     <input id="phone" type="tel" dir="ltr" placeholder="+972501234567" autocomplete="tel">
-    <div id="creds">
+    <div id="creds" hidden>
       <label for="aid">api_id <a href="https://my.telegram.org/apps" target="_blank" rel="noopener">(איך משיגים?)</a></label>
       <input id="aid" inputmode="numeric" dir="ltr" autocomplete="off">
       <label for="ahash">api_hash</label>
@@ -51,6 +51,8 @@
     <label for="code">קוד האימות שהגיע לטלגרם</label>
     <input id="code" inputmode="numeric" dir="ltr" autocomplete="one-time-code">
     <button id="b2" onclick="step2()">אמת</button>
+    <div id="hint" class="note"></div>
+    <button id="b2r" class="sec" onclick="resend()">לא הגיע? שלח שוב</button>
   </div>
 
   <div id="s3" hidden>
@@ -81,7 +83,7 @@ let pending = null;
 fetch('/api/login').then((r) => r.json()).then((c) => {
   $('spwrap').hidden = !c.needsSitePassword;
   // Site has its own api_id/api_hash configured: users only enter phone + code.
-  if (c.hasDefaultCreds) $('creds').hidden = true;
+  $('creds').hidden = !!c.hasDefaultCreds; // shown only if the server has no TG_API_ID / TG_API_HASH
 }).catch(() => {});
 
 function show(id) { ['s1', 's2', 's3', 's4'].forEach((s) => ($(s).hidden = s !== id)); }
@@ -107,6 +109,19 @@ const step1 = () => run($('b1'), async () => {
   const j = await call({ step: 'phone', phone: $('phone').value.trim() });
   if (j.error) return msg(j.error);
   pending = j.pending; msg(''); show('s2'); $('code').focus();
+  $('hint').textContent = j.via === 'app'
+    ? 'הקוד נשלח כהודעה בתוך אפליקציית טלגרם, מהצ׳אט "Telegram" (לא ב-SMS). בדוק בטלפון ובמחשב.'
+    : 'הקוד נשלח ב-SMS או בדרך אחרת.';
+});
+
+const resend = () => run($('b2r'), async () => {
+  const j = await call({ step: 'resend', pending });
+  if (j.error) return msg(j.error);
+  pending = j.pending; msg('');
+  $('hint').textContent = /Sms/.test(j.via) ? 'נשלח קוד חדש ב-SMS.'
+    : /Call/.test(j.via) ? 'הקוד יוקרא לך בשיחת טלפון.'
+    : /App/.test(j.via) ? 'נשלח קוד חדש לאפליקציית טלגרם.'
+    : 'נשלח קוד חדש.';
 });
 
 const step2 = () => run($('b2'), async () => {
