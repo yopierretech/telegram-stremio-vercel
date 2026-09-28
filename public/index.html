@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Telegram → Stremio / Nuvio</title>
+<style>
+  :root{color-scheme:dark;--bg:#0e1116;--card:#181c24;--line:#2a303c;--fg:#eceff4;--mut:#8b93a3;--acc:#2aabee}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+  .card{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px}
+  h1{font-size:20px;margin:0 0 4px}
+  p.sub{margin:0 0 18px;color:var(--mut);font-size:14px;line-height:1.5}
+  label{display:block;font-size:13px;color:var(--mut);margin:14px 0 6px}
+  input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);font-size:16px}
+  input:focus{outline:2px solid var(--acc);border-color:transparent}
+  button,a.btn{display:block;width:100%;margin-top:14px;padding:12px;border:0;border-radius:10px;background:var(--acc);color:#fff;font-size:16px;font-weight:600;text-align:center;text-decoration:none;cursor:pointer}
+  button.sec,a.sec{background:transparent;border:1px solid var(--line);color:var(--fg)}
+  button:disabled{opacity:.6}
+  #msg{min-height:20px;margin-top:12px;font-size:14px;color:#ff9b9b}
+  .note{margin-top:14px;font-size:12px;line-height:1.5;color:var(--mut)}
+  a{color:var(--acc)}
+  .warn{margin-top:16px;padding:10px 12px;border-radius:10px;background:#2a2116;color:#f3c98b;font-size:13px;line-height:1.5}
+  ol{padding-inline-start:20px;color:var(--mut);font-size:14px;line-height:1.7}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Telegram ← Stremio / Nuvio</h1>
+  <p class="sub">התחבר לחשבון הטלגרם שלך וקבל כתובת תוסף להדבקה.</p>
+
+  <div id="s1">
+    <label for="phone">מספר טלפון (עם קידומת מדינה)</label>
+    <input id="phone" type="tel" dir="ltr" placeholder="+972501234567" autocomplete="tel">
+    <div id="creds">
+      <label for="aid">api_id <a href="https://my.telegram.org/apps" target="_blank" rel="noopener">(איך משיגים?)</a></label>
+      <input id="aid" inputmode="numeric" dir="ltr" autocomplete="off">
+      <label for="ahash">api_hash</label>
+      <input id="ahash" dir="ltr" autocomplete="off">
+    </div>
+    <div id="spwrap" hidden>
+      <label for="sp">סיסמת אתר</label>
+      <input id="sp" type="password" dir="ltr" autocomplete="off">
+    </div>
+    <button id="b1" onclick="step1()">שלח קוד</button>
+    <div class="note">האתר לא שומר את הפרטים שלך במסד נתונים. ה-session מוצפן ונמצא בתוך הכתובת שתקבל, ורק אתה מחזיק בה. ייתכן שטלגרם תשלח לך התראה על כניסה ממכשיר חדש; זה צפוי.</div>
+  </div>
+
+  <div id="s2" hidden>
+    <label for="code">קוד האימות שהגיע לטלגרם</label>
+    <input id="code" inputmode="numeric" dir="ltr" autocomplete="one-time-code">
+    <button id="b2" onclick="step2()">אמת</button>
+  </div>
+
+  <div id="s3" hidden>
+    <label for="pw">סיסמת אימות דו-שלבי</label>
+    <input id="pw" type="password" dir="ltr" autocomplete="current-password">
+    <button id="b3" onclick="step3()">התחבר</button>
+  </div>
+
+  <div id="s4" hidden>
+    <label for="url">כתובת התוסף</label>
+    <input id="url" readonly dir="ltr" onclick="this.select()">
+    <button onclick="copyUrl()" id="cp">העתק כתובת</button>
+    <a class="btn sec" id="stremio" href="#">פתח ב-Stremio</a>
+    <ol>
+      <li><b>Stremio:</b> הדבק ב-Addons ← Add addon, או לחץ על הכפתור למעלה.</li>
+      <li><b>Nuvio:</b> הדבק ב-Addons / Plugins ← הוסף תוסף לפי כתובת.</li>
+    </ol>
+    <div class="warn">הכתובת נותנת גישה לחשבון הטלגרם שלך. אל תשתף אותה. כדי לבטל: ב-Telegram ← Settings ← Devices, וסיים את ההפעלה.</div>
+  </div>
+
+  <div id="msg"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let pending = null;
+
+fetch('/api/login').then((r) => r.json()).then((c) => {
+  $('spwrap').hidden = !c.needsSitePassword;
+  // Site has its own api_id/api_hash configured: users only enter phone + code.
+  if (c.hasDefaultCreds) $('creds').hidden = true;
+}).catch(() => {});
+
+function show(id) { ['s1', 's2', 's3', 's4'].forEach((s) => ($(s).hidden = s !== id)); }
+function msg(t) { $('msg').textContent = t || ''; }
+
+async function call(body) {
+  const r = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, sitePassword: $('sp').value, apiId: $('aid').value.trim(), apiHash: $('ahash').value.trim() }),
+  });
+  return r.json();
+}
+
+async function run(btn, fn) {
+  btn.disabled = true;
+  msg('...');
+  try { await fn(); } catch (e) { msg('שגיאת רשת, נסה שוב'); }
+  btn.disabled = false;
+}
+
+const step1 = () => run($('b1'), async () => {
+  const j = await call({ step: 'phone', phone: $('phone').value.trim() });
+  if (j.error) return msg(j.error);
+  pending = j.pending; msg(''); show('s2'); $('code').focus();
+});
+
+const step2 = () => run($('b2'), async () => {
+  const j = await call({ step: 'code', pending, code: $('code').value.trim() });
+  if (j.error) return msg(j.error);
+  if (j.needPassword) { msg(''); show('s3'); return $('pw').focus(); }
+  done(j.token);
+});
+
+const step3 = () => run($('b3'), async () => {
+  const j = await call({ step: 'password', pending, password: $('pw').value });
+  if (j.error) return msg(j.error);
+  done(j.token);
+});
+
+function done(token) {
+  const url = location.origin + '/' + token + '/manifest.json';
+  $('url').value = url;
+  $('stremio').href = 'stremio://' + url.replace(/^https?:\/\//, '');
+  msg(''); show('s4');
+}
+
+async function copyUrl() {
+  try { await navigator.clipboard.writeText($('url').value); }
+  catch { $('url').select(); document.execCommand('copy'); }
+  $('cp').textContent = 'הועתק ✓';
+  setTimeout(() => ($('cp').textContent = 'העתק כתובת'), 1500);
+}
+</script>
+</body>
+</html>
