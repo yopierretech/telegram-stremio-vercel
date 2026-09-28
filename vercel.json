@@ -1,0 +1,15 @@
+{
+  "functions": {
+    "api/addon.js": { "maxDuration": 300 },
+    "api/login.js": { "maxDuration": 30 }
+  },
+  "rewrites": [
+    { "source": "/:token/manifest.json", "destination": "/api/addon?r=manifest&token=:token" },
+    { "source": "/:token/catalog/:type/:id/:extra.json", "destination": "/api/addon?r=catalog&token=:token&id=:id&extra=:extra" },
+    { "source": "/:token/catalog/:type/:id.json", "destination": "/api/addon?r=catalog&token=:token&id=:id" },
+    { "source": "/:token/meta/:type/:id.json", "destination": "/api/addon?r=meta&token=:token&id=:id" },
+    { "source": "/:token/stream/:type/:id.json", "destination": "/api/addon?r=stream&token=:token&id=:id" },
+    { "source": "/:token/thumb/:kind/:chat/:hash/:msg.jpg", "destination": "/api/addon?r=thumb&token=:token&kind=:kind&chat=:chat&hash=:hash&msg=:msg" },
+    { "source": "/:token/file/:kind/:chat/:hash/:msg", "destination": "/api/addon?r=file&token=:token&kind=:kind&chat=:chat&hash=:hash&msg=:msg" }
+  ]
+}

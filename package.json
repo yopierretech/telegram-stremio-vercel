@@ -1,0 +1,11 @@
+{
+  "name": "telegram-stremio-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "20.x" },
+  "dependencies": {
+    "big-integer": "^1.6.52",
+    "telegram": "^2.26.0"
+  }
+}
